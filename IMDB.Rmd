@@ -29,6 +29,8 @@ Text Pre-Processing
 ```{r}
 
 ```
-
+removeHTML <- function(htmlString) {
+  return(gsub("<.*?>", "", htmlString))
+}
 
 
