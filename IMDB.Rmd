@@ -1,0 +1,34 @@
+---
+title: "BSAN 460 R Project: IMDB - Modeling & Analysis for Faster Feedback"
+author: "Group 7: Cappy Kan, Zion Taber, Samantha Gilpin, Trang Tran"
+date: "DD/MM/YYYY"
+output: html_document
+---
+Importing the Dataset
+```{r}
+library(readr)
+getwd()
+setwd("F:/BSAN 460-001/Project")
+#import IMDB
+imdb <- read.csv("IMDB")
+str(imdb)
+summary(imdb)
+```
+
+
+Loading Libraries and NLP Packages
+```{r}
+library(dplyr)
+library(tm)
+library(textstem)
+# during the course we may need to add additional packages for different analyses
+```
+
+
+Text Pre-Processing
+```{r}
+
+```
+
+
+
