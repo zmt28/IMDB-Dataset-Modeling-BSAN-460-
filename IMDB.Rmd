@@ -43,7 +43,7 @@ pre_processing_data_frame_fct <- function(review_column){
   text_column <- gsub(paste(stopwords('en'), collapse = '\\b|\\b'),'',review_column) # remove stopwords
   text_column <- gsub('[[:punct:]]','',review_column) # remove punctuation
   text_column <- gsub('\\s+',' ',review_column) # remove white space
-  text_column <- gsub("<.*?>", "", htmlString) # remove htmls/urls
+  text_column <- gsub("<.*?>", "", review_column) # remove htmls/urls
   text_column <- lemmatize_strings(review_column) # lemmatize text
   corp <- Corpus(VectorSource(review_column)) # transform to corpus
   return(corp)
