@@ -8,6 +8,8 @@ Loading Libraries and NLP Packages
 ```{r}
 library(readr)
 library(dplyr) # dataframe manipulation
+library(tidyverse) # helps tidy data
+library(tidytext)
 library(tm) # text mining (text pre-processing)
 library(textstem) # tools for stemming and lemmatizing text
 library(wordcloud) # generates word cloud plot
@@ -51,7 +53,26 @@ pre_processing_data_frame_fct <- function(review_column){
 
 imdb_clean <- pre_processing_data_frame_fct(imdb$review)
 imdb_clean
-write.csv(imdb_clean, imdb_clean)
+
+
+# Create a Term Document Matrix
+imdb_TDM <- TermDocumentMatrix(imdb_clean)
+
+
+imdb_tidy <- tidy(imdb_TDM)
+write.csv(imdb_tidy, "imdb_tidy.csv") 
+
+str(imdb_tidy)
+summary(imdb_tidy)
+head(imdb_tidy)
+
+# things to do/look at
+# create a word cloud to find words we can remove that will not contribute towards determining sentiment
+# please look at head(imdb_tidy) there are character values that should not be there additionally words are counted more than twice which is an issue (the, and, etc)
+# please look at str(imdb_tidy) document is a character but, I think should be a number?
+## if we have to merge a diff dataset and merge by a document number to bring the sentiment columns together. We could get an error. Then ensure that the data types are the same (either numeric or character)
+# add "the" to stopwords. th.e (possibly because after punctuation is removed it formed the word)
+# instead of the whole function we can run separate functions to see the before and after
 ```
 
 
@@ -115,4 +136,8 @@ F1_Score(y_true = TestDS$Sentiments, y_pred = Trans_Predict_TestDS)
 ConfusionMatrix(y_true = TestDS$Sentiments, y_pred = Trans_Predict_TestDS)
 
 ```
+
+
+
+
 
