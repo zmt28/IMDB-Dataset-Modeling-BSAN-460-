@@ -1,50 +1,147 @@
 ---
-  title: "BSAN 460 R Project: IMDB - Modeling & Analysis for Faster Feedback"
+  title: "BSAN 460 R Project: IMDB Movie Review Sentiment Analysis - Modeling & Analysis for Faster Feedback"
 author: "Group 7: Cappy Kan, Zion Taber, Samantha Gilpin, Trang Tran"
 date: "DD/MM/YYYY"
 output: html_document
 ---
-# Set WD
+  Loading Libraries and NLP Packages
+```{r}
+library(readr)
+library(dplyr) # dataframe manipulation
+library(tidyverse) # helps tidy data
+library(tidytext)
+library(tm) # text mining (text pre-processing)
+library(textstem) # tools for stemming and lemmatizing text
+library(wordcloud) # generates word cloud plot
+library(RColorBrewer) # for color palettes used in various plots
+library(syuzhet) # for sentiment scores and emotion classification
+library(ggplot2) # for plotting graphs
+library(pROC) # this package is used to calculate AUC (performance measure for fitness of probabilities)
+library(MLmetrics)
+options(scipen = 999) # Beta coefficients will now display as regular numbers instead of scientific notation
+
+# during the course we may need to add additional packages for different analyses
+```
+
+
+
+Importing the Dataset
+```{r}
 getwd()
 setwd("F:/BSAN 460-001/Project")
-
 #import IMDB
-imdb <- read.csv("IMDB Dataset.csv")
+imdb <- read.csv("IMDB.csv")
 str(imdb)
 summary(imdb)
-
-# Loading Libraries and NLP Packages
-library(dplyr)
-library(tm)
-library(textstem)
-# during the course we may need to add additional packages for different analyses
-
-# Text Pre-Processing
-
-# bring to lower case
-# remove numbers
-# remove stopwords
-# remove tags
-# remove URLs
-# remove punctuation
-# remove white space
-# apply stemming/ lemmatization
-
-imdb <- imdb %>% mutate(review = tolower(review))
-imdb <- imdb %>% mutate(review = gsub('[[:digit:]]','',review)) 
-stopwords_regex = paste(stopwords('en'), collapse = '\\b|\\b')
-imdb <- imdb %>% mutate(review = gsub(stopwords_regex,'',review)) 
-imdb <- imdb %>% mutate(review = gsub('@\\w*','',review))
-imdb <- imdb %>% mutate(review = gsub('http.*\\s','', review))
-imdb <- imdb %>% mutate(review = gsub('[[:punct:]]','', review))
-imdb <- imdb %>% mutate(review = gsub('\\s+',' ', review))
-imdb <- imdb %>% mutate(imdb_lemma = lemmatize_strings(review))
-imdb <- imdb %>% mutate(imdb_stem = stem_strings(review))
-
-head(imdb)
+```
 
 
-removeHTML <- function(htmlString) {
-  return(gsub("<.*?>", "", htmlString))
+
+Text Pre-Processing
+```{r}
+pre_processing_data_frame_fct <- function(review_column){
+  text_column <- tolower(review_column) # bring all the words to lower case
+  text_column <- gsub('[[:digit:]]','',review_column) # remove numbers
+  text_column <- gsub(paste(stopwords('en'), collapse = '\\b|\\b'),'',review_column) # remove stopwords
+  text_column <- gsub('[[:punct:]]','',review_column) # remove punctuation
+  text_column <- gsub('\\s+',' ',review_column) # remove white space
+  text_column <- gsub("<.*?>", "", review_column) # remove htmls/urls
+  text_column <- lemmatize_strings(review_column) # lemmatize text
+  corp <- Corpus(VectorSource(review_column)) # transform to corpus
+  return(corp)
 }
 
+imdb_clean <- pre_processing_data_frame_fct(imdb$review)
+imdb_clean
+
+
+# Create a Term Document Matrix
+imdb_TDM <- TermDocumentMatrix(imdb_clean)
+
+
+imdb_tidy <- tidy(imdb_TDM)
+write.csv(imdb_tidy, "imdb_tidy.csv") 
+
+str(imdb_tidy)
+summary(imdb_tidy)
+head(imdb_tidy)
+
+# things to do/look at
+# create a word cloud to find words we can remove that will not contribute towards determining sentiment
+# please look at head(imdb_tidy) there are character values that should not be there additionally words are counted more than twice which is an issue (the, and, etc)
+# please look at str(imdb_tidy) document is a character but, I think should be a number?
+## if we have to merge a diff dataset and merge by a document number to bring the sentiment columns together. We could get an error. Then ensure that the data types are the same (either numeric or character)
+# add "the" to stopwords. th.e (possibly because after punctuation is removed it formed the word)
+# instead of the whole function we can run separate functions to see the before and after
+```
+
+
+
+Split the Data Set
+```{r}
+## Is the data imbalanced?
+imdb %>% count(sentiments)
+# No, the data is not imbalanced
+
+## Create Training & Testing Data Sets
+set.seed(7) # reproducable results every time we rerun the code
+train_indices <- sample(nrow(imdb), size = round(.7 * nrow(imdb)), replace = F)
+head(train_indices)
+TrainDS <- imdb[train_ind, ]
+head(train)
+TestDS <- imdb[-train_ind, ]
+head(test)
+```
+
+
+
+Logistic Regression Model I
+```{r}
+## Create Logistic Regression 1
+LogReg1 <- glm(sentiments ~ #Independent Variable(s), data = TrainDS, family = "binomial")
+                 LogReg1
+               summary(LogReg1) # do we have a significant Pvalue? If there is no sig value we can remove that independent value from the model
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                 ## Predicting TrainDS Probabilities
+                 Predict_TrainDS <- predict(LogReg1, TrainDS, type='response')
+               head(Predict_TrainDS)
+               
+               # Plot Histogram probabilities 
+               hist(Predict_TrainDS, breaks = 100) 
+               
+               # calculate and Plot AUC
+               roc(TrainDS$Sentiments, Predict_TrainDS, percent = TRUE, plot = TRUE) 
+               
+               # Calculate Performance Metrics
+               Trans_Predict_TrainDS <- ifelse(TrainDS >= 0.5, "Happiness", "Sadness") # do we want to use 0.5 or another percentage? What do we want the threshold to be?
+               # Metric(y_true = dependent variable, y_pred = Binarized values)
+               Accuracy(y_true = TrainDS$Sentiments, y_pred = Trans_Predict_TrainDS) # Is Accuracy a good metric?
+               F1_Score(y_true = TrainDS$Sentiments, y_pred = Trans_Predict_TrainDS)   
+               ConfusionMatrix(y_true = TrainDS$Sentiments, y_pred = Trans_Predict_TrainDS)
+               
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                 
+                 ## Predicting TestDS Probabilities
+                 TestDS <- predict(LogReg1, TestDS, type='response') 
+               head(TestDS)
+               
+               # calculate and Plot AUC
+               roc(TestDS$Sentiments, TestDS, percent = TRUE, plot = TRUE) 
+               # we get an AUC of 60.13%, not that good since AUC of random chance is 50%, but similar to train set
+               
+               # calculate Performance Metrics
+               Trans_Predict_TestDS <- ifelse(TestDS >= 0.5, "Happiness", "Sadness")
+               Accuracy(y_true = TestDS$Sentiments, y_pred = Trans_Predict_TestDS) # Is there a diff bt train and test data (overfitting?)
+               F1_Score(y_true = TestDS$Sentiments, y_pred = Trans_Predict_TestDS)   
+               ConfusionMatrix(y_true = TestDS$Sentiments, y_pred = Trans_Predict_TestDS)
+               
+               ```
+# Wordcloud
+cloud_imdb <- imdb_tidy %>% group_by(term) %>% summarise(counts = sum(count)) %>% ungroup()
+cloud_imdb <- cloud_imdb %>% filter(!is.na(term))  # removing NAs in the term column
+head(cloud_imdb %>% arrange(-counts))  # these are the most common words
+wordcloud(words=cloud_imdb$term, freq=cloud_imdb$counts, random.order=FALSE, colors=brewer.pal(7, "Greens"), max.words = 70, min.freq = 20)             
+               
+               
+               
+               
