@@ -137,8 +137,7 @@ LogReg1 <- glm(sentiments ~ #Independent Variable(s), data = TrainDS, family = "
                
                ```
 # Wordcloud
-cloud_imdb <- imdb_tidy %>% group_by(term) %>% summarise(counts = sum(count)) %>% ungroup()
-cloud_imdb <- cloud_imdb %>% filter(!is.na(term))  # removing NAs in the term column
+cloud_imdb <- imdb_clean %>% group_by(term) %>% summarise(counts = sum(count)) %>% ungroup()
 head(cloud_imdb %>% arrange(-counts))  # these are the most common words
 wordcloud(words=cloud_imdb$term, freq=cloud_imdb$counts, random.order=FALSE, colors=brewer.pal(7, "Greens"), max.words = 70, min.freq = 20)             
                
