@@ -65,10 +65,10 @@ wordcloud(imdb$review, max.words = 75)
 dtMatrix <- create_matrix(imdb["review"])
 
 # Configure the training data
-train_container <- create_container(dtMatrix, imdb$sentiment, trainSize=301:2000, virgin=FALSE)
+train_container <- create_container(dtMatrix, imdb$sentiment, trainSize=401:3000, virgin=FALSE)
 
 # Configure the testing data
-test_container <- create_container(dtMatrix, imdb$sentiment, testSize = 1:300, virgin=FALSE)
+test_container <- create_container(dtMatrix, imdb$sentiment, testSize = 1:400, virgin=FALSE)
 
 # train a SVM Model
 model <- train_model(train_container, "SVM", kernel="linear", cost=1)
@@ -77,6 +77,8 @@ model <- train_model(train_container, "SVM", kernel="linear", cost=1)
 results <- classify_model(test_container, model)
 results
 
+#Evaluate the model Accuracy and Performance
+confusionMatrix(as.factor(imdb[1:400, 2]), as.factor(results$SVM_LABEL))
 
 # Creating our Naive Bayes Model
 mTrain = create_matrix(TrainDS[,1], 
@@ -100,3 +102,4 @@ model = naiveBayes(matTrain, labelTrain)
 # We evaluate the fitted model.
 pred = predict(model, matTrain) 
 confusionMatrix(labelTrain, pred)
+
