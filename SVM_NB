@@ -9,6 +9,7 @@ output: html_document
 install.packages("h2o")
 install.packages("e1071")
 install.packages("RTextTools")
+library(caTools)
 library(RTextTools)
 library(h2o)
 library(e1071)
@@ -34,7 +35,7 @@ options(scipen = 999) # Beta coefficients will now display as regular numbers in
 getwd()
 setwd("F:/BSAN 460-001/Project")
 #import IMDB
-imdb <- read.csv("IMDB Dataset.csv")
+imdb <- read.csv("IMDB Dataset.csv", stringsAsFactors=TRUE)
 str(imdb)
 summary(imdb)
 #```
@@ -78,19 +79,19 @@ results <- classify_model(test_container, model)
 results
 
 #Evaluate the model Accuracy and Performance
-confusionMatrix(as.factor(imdb[1:400, 2]), as.factor(results$SVM_LABEL))
+confusionMatrix(as.factor(imdb[1:400,2]), as.factor(results$SVM_LABEL))
 
 # Creating our Naive Bayes Model
 mTrain = create_matrix(TrainDS[,1], 
                        removeStopwords=FALSE, removeNumbers=FALSE, 
                        stemWords=FALSE) 
-mTrain1 <- removeSparseTerms(mTrain, .95)
+mTrain1 <- removeSparseTerms(mTrain, .975)
 matTrain = as.matrix(mTrain1)
 
 mTest = create_matrix(TestDS[,1], language="english", 
                       removeStopwords=FALSE, removeNumbers=FALSE, 
                       stemWords=FALSE) 
-mTest1 <- removeSparseTerms(mTest, .95)
+mTest1 <- removeSparseTerms(mTest, .975)
 matTest = as.matrix(mTest1)
 
 
@@ -100,6 +101,54 @@ labelTest = as.factor(TestDS[,2])
 model = naiveBayes(matTrain, labelTrain)
 
 # We evaluate the fitted model.
-pred = predict(model, matTrain) 
+pred = predict(model, matTrain)
 confusionMatrix(labelTrain, pred)
 
+# Logistic Regression Model
+imdb_dtm <- DocumentTermMatrix(imdb_clean)
+sparsedtm <- removeSparseTerms(imdb_dtm, 0.98)
+
+important_words_df <- as.data.frame(as.matrix(sparsedtm), stringsAsFactors=TRUE)
+colnames(important_words_df) <- make.names(colnames(important_words_df))
+
+# split into train and test
+important_words_train_df <- head(important_words_df, nrow(TrainDS))
+important_words_test_df <- tail(important_words_df, nrow(TestDS))
+
+# Add to original dataframes
+TrainDS1 <- as.data.frame(unclass(TrainDS),stringsAsFactors=TRUE)
+TestDS1 <- as.data.frame(unclass(TestDS),stringsAsFactors=TRUE)
+
+train_data_words_df <- cbind(TrainDS1, important_words_train_df)
+test_data_words_df <- cbind(TestDS1, important_words_test_df)
+
+# Get rid of the original Text field
+train_data_words_df$review <- NULL
+test_data_words_df$review <- NULL
+
+set.seed(1234)
+# Create an index with 80% True values based on Sentiment
+spl <- sample.split(train_data_words_df$sentiment, SplitRatio = .80)
+
+# now we use it to split our data into train and test
+eval_train_data_df <- train_data_words_df[spl==TRUE,]
+eval_test_data_df <- train_data_words_df[spl==FALSE,]
+
+log_model <- glm(sentiment~., data=eval_train_data_df, family=binomial)
+log_model2 <- train(sentiment~., data=eval_train_data_df, method='rpart')
+summary(log_model)
+
+#Evaluate Performance
+log_pred <- predict(log_model, newdata=eval_test_data_df, type="response")
+log_pred2 <- predict(log_model2, newdata=eval_test_data_df)
+
+table(eval_test_data_df$sentiment, log_pred>.5)
+confusionMatrix(eval_test_data_df$sentiment, log_pred2, positive = "positive")
+
+##    
+##     FALSE TRUE
+##   0   1736   1762
+##   1   1694   1808
+
+(1727 + 1731) / nrow(eval_test_data_df)
+## [1] 0.5062857
