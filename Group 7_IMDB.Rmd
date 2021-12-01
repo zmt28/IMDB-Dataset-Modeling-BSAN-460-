@@ -1,0 +1,188 @@
+---
+title: "BSAN 460 R Project: IMDB Movie Review Sentiment Analysis - Modeling & Analysis for Faster Feedback"
+author: "Group 7: Cappy Kan, Zion Taber, Samantha Gilpin, Trang Tran"
+date: "11/30/2021"
+output: html_document
+---
+Loading Libraries and NLP Packages
+```{r}
+library(caret)
+library(dplyr) # dataframe manipulation
+library(e1071)
+library(ggplot2) # for plotting graphs
+library(h2o)
+library(MLmetrics)
+library(pROC) # this package is used to calculate AUC (performance measure for fitness of probabilities)
+library(RColorBrewer) # for color palettes used in various plots
+library(readr)
+library(RTextTools)
+options(scipen = 999) # Beta coefficients will now display as regular numbers instead of scientific notation
+library(syuzhet) # for sentiment scores and emotion classification
+library(textstem) # tools for stemming and lemmatizing text
+library(tidytext)
+library(tidyverse) # helps tidy data
+library(tm) # text mining (text pre-processing)
+library(wordcloud) # generates word cloud plot
+```
+
+
+
+Importing the Dataset
+```{r}
+getwd()
+setwd("F:/BSAN 460-001/Project")
+#import IMDB
+imdb <- read.csv("IMDB.csv")
+str(imdb)
+summary(imdb)
+```
+
+
+
+Text Pre-Processing
+```{r echo=TRUE}
+# Clean the data
+imdb$review <- gsub("<.*?>", "", imdb$review) # remove htmls/urls
+imdb$review <- gsub('[[:punct:]]','', imdb$review) # remove punctuation
+imdb$review <- gsub('[[:digit:]]', '', imdb$review) # remove numbers
+imdb$review <- gsub(paste(stopwords('en'), collapse = '\\b|\\b'),'', imdb$review) # remove stopwords
+imdb$review <- gsub('\\s+',' ', imdb$review) # remove white space
+imdb$review <- lemmatize_strings(imdb$review) # lemmatize text
+
+imdb_clean <- Corpus(VectorSource(imdb$review))
+
+# Create Document Term Matrix (DTM)
+dtMatrix <- create_matrix(imdb["review"])
+
+# Remove Sparse Terms
+sparsedtm <- removeSparseTerms(dtMatrix, 0.98)
+
+# Make a Wordcloud
+wordcloud(imdb$review, max.words = 75)
+
+# Find Important Words
+important_words_df <- as.data.frame(as.matrix(sparsedtm), stringsAsFactors=TRUE)
+colnames(important_words_df) <- make.names(colnames(important_words_df))
+
+
+```
+
+
+
+Split the Data Set
+```{r}
+## Is the data imbalanced?
+imdb %>% count(sentiments)
+# No, the data is not imbalanced
+
+## Create Training & Testing Data Sets
+set.seed(7) # reproduceable results every time we rerun the code
+train_indices <- sample(nrow(imdb), size = round(.7 * nrow(imdb)), replace = F)
+head(train_indices)
+TrainDS <- imdb[train_ind, ]
+head(train)
+TestDS <- imdb[-train_ind, ]
+head(test)
+```
+
+
+
+Logistic Regression Model
+```{r}
+# split into train and test
+important_words_train_df <- head(important_words_df, nrow(TrainDS))
+important_words_test_df <- tail(important_words_df, nrow(TestDS))
+
+# Add to original dataframes
+TrainDS1 <- as.data.frame(unclass(TrainDS),stringsAsFactors=TRUE)
+TestDS1 <- as.data.frame(unclass(TestDS),stringsAsFactors=TRUE)
+
+train_data_words_df <- cbind(TrainDS1, important_words_train_df)
+test_data_words_df <- cbind(TestDS1, important_words_test_df)
+
+# Get rid of the original Text field
+train_data_words_df$review <- NULL
+test_data_words_df$review <- NULL
+
+set.seed(1234)
+# Create an index with 80% True values based on Sentiment
+spl <- sample.split(train_data_words_df$sentiment, SplitRatio = .80)
+
+# now we use it to split our data into train and test
+eval_train_data_df <- train_data_words_df[spl==TRUE,]
+eval_test_data_df <- train_data_words_df[spl==FALSE,]
+
+log_model <- glm(sentiment~., data=eval_train_data_df, family=binomial)
+log_model2 <- train(sentiment~., data=eval_train_data_df, method='rpart')
+summary(log_model)
+
+#Evaluate Performance
+log_pred <- predict(log_model, newdata=eval_test_data_df, type="response")
+log_pred2 <- predict(log_model2, newdata=eval_test_data_df)
+
+table(eval_test_data_df$sentiment, log_pred>.5)
+confusionMatrix(eval_test_data_df$sentiment, log_pred2, positive = "positive")
+
+##    
+##     FALSE TRUE
+##   0   1736   1762
+##   1   1694   1808
+
+(1727 + 1731) / nrow(eval_test_data_df)
+## [1] 0.5062857
+
+```
+
+
+
+Support Vector Machine Model (SVM)
+```{r}
+# Create the document term matrix
+dtMatrix2 <- create_matrix(imdb["review"])
+
+# Configure the training data
+train_container <- create_container(dtMatrix2, imdb$sentiment, trainSize=401:3000, virgin=FALSE)
+
+# Configure the testing data
+test_container <- create_container(dtMatrix2, imdb$sentiment, testSize = 1:400, virgin=FALSE)
+
+# train a SVM Model
+model <- train_model(train_container, "SVM", kernel="linear", cost=1)
+
+# predict
+results <- classify_model(test_container, model)
+results
+
+#Evaluate the model Accuracy and Performance
+confusionMatrix(as.factor(imdb[1:400, 2]), as.factor(results$SVM_LABEL))
+```
+
+
+
+Naive Bayes Model
+```{r}
+# Create Naive Bayes Model
+mTrain = create_matrix(TrainDS[,1], 
+                       removeStopwords=FALSE, removeNumbers=FALSE, 
+                       stemWords=FALSE) 
+mTrain1 <- removeSparseTerms(mTrain, .95)
+matTrain = as.matrix(mTrain1)
+
+mTest = create_matrix(TestDS[,1], language="english", 
+                      removeStopwords=FALSE, removeNumbers=FALSE, 
+                      stemWords=FALSE) 
+mTest1 <- removeSparseTerms(mTest, .95)
+matTest = as.matrix(mTest1)
+
+
+labelTrain = as.factor(TrainDS[,2])
+labelTest = as.factor(TestDS[,2])
+
+model = naiveBayes(matTrain, labelTrain)
+
+# We evaluate the fitted model.
+pred = predict(model, matTrain) 
+confusionMatrix(labelTrain, pred)
+
+```
+
